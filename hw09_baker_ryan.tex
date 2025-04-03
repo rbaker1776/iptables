@@ -1,0 +1,155 @@
+\documentclass{article}
+
+\usepackage{listings}
+
+\title{ECE 40400 Homework 9}
+\date{\today}
+\author{Ryan Baker}
+
+\begin{document}
+\maketitle
+
+\begin{enumerate}
+
+\item Requirement 1
+
+\noindent
+Requirement 1 mandates that we flush rules and delete custom chains in the filter table:
+
+\begin{lstlisting}[basicstyle=\ttfamily,frame=single]
+iptables -F
+iptables -X
+\end{lstlisting}
+
+\noindent
+\texttt{-F} flushed all existing rules in all chains. \texttt{-X} deletes any chains.
+
+\item Requirement 2
+
+\noindent
+Reject packets from f1.com:
+
+\begin{lstlisting}[basicstyle=\ttfamily,frame=single]
+iptables -A input -s f1.com -j REJECT
+\end{lstlisting}
+
+\noindent
+\texttt{-A INPUT} appends an input command to the chain. \texttt{-s f1.com} specifies the source of input packets. \texttt{-j REJECT} rejects packets from the source.
+
+\item Requirement 3
+
+\noindent
+
+Enable MASQUERADE for outgoing packets:
+
+\begin{lstlisting}[basicstyle=\ttfamily,frame=single]
+iptables -t nat -A POSTROUTING -o eth0
+	-j MASQUERADE
+\end{lstlisting}
+
+\noindent
+\texttt{-t nat} specifies the NAT table.
+\texttt{-A POSTROUTING} appends the rule to the post-routing chain.
+\texttt{-o eth0} applies NAT only to packets leaving via eth0.
+\texttt{-j MASQUERADE} replaces source IP with the machine's public IP.
+
+\item Requirement 4
+
+\noindent
+Protect against port scanning:
+
+\begin{lstlisting}[basicstyle=\ttfamily,frame=single]
+iptables -N PORTSCAN
+iptables -A PORTSCAN -p tcp --tcp-flags
+	SYN,ACK,FIN,RST RST -m limit --limit 1/s
+	-j RETURN
+iptables -A PORTSCAN -j DROP
+iptables -A INPUT -p tcp --tcp-flags ALL SYN,ACK
+	-j PORTSCAN
+
+\end{lstlisting}
+
+\noindent
+\texttt{-N PORTSCAN} makes a new chain called PORTSCAN.
+\texttt{-p tcp --tcp-flags SYN,ACK,FIN,RST RST} detects various TCP packets.
+\texttt{-m limit --limit 1/s} limits accepted packets to 1 per second.
+\texttt{-j RETURN} lets proper traffic pass if it is below the limit.
+\texttt{-j DROP} discards excessive scans.
+\texttt{-A INPUT -p tcp --tcp-flags ALL SYN,ACK -j PORTSCAN} directs suspected scan traffic to the PORTSCAN chain.
+
+\item Requirement 5
+
+\noindent
+Protect against SYN-Flooding:
+
+\begin{lstlisting}[basicstyle=\ttfamily,frame=single]
+iptables -A INPUT -p tcp --syn 
+	-m limit --limit 1/s --limit-burst 500
+	-j ACCEPT
+iptables -A INPUT -p tcp --syn -j DROP
+\end{lstlisting}
+
+\noindent
+\texttt{-p tcp --syn} filters for SYN packets.
+\texttt{-m limit --limit 1/s --limit-} \texttt{burst 500} allows only 1 new connection per second after the first 500 connections.
+This allows legitimate connections while dropping excessive ones.
+
+\item Requirement 6
+
+\noindent
+Allow full loopback access:
+
+\begin{lstlisting}[basicstyle=\ttfamily,frame=single]
+iptables -A INPUT -i lo -j ACCEPT
+iptables -A OUTPUT -o lo -j ACCEPT
+\end{lstlisting}
+
+\noindent
+\texttt{-i lo} and \texttt{-o lo} ensure loopback access to localhost.
+
+\item Requirement 7
+
+\noindent
+Forward traffic from port 8888 to 25565:
+
+\begin{lstlisting}[basicstyle=\ttfamily,frame=single]
+iptables -t nat -A PREROUTING -p tcp --dport
+	8888 -j DNAT --to-destination :25565
+\end{lstlisting}
+
+\noindent
+\texttt{-t nat} specifies the NAT table.
+\texttt{-p tcp --dport 8888} modifies packets coming for 8888.
+\texttt{-j DNAT --to-destination :25565} redirects them to port 25565.
+
+\item Allow SSH connections only to engineering.purdue.edu:
+
+\begin{lstlisting}[basicstyle=\ttfamily,frame=single]
+iptables -A OUTPUT -p tcp --dport 22 -d 
+	engineering.purdue.edu -m state
+	--state NEW,ESTABLISHED -j ACCEPT
+iptables -A INPUT -p tcp --sport 22 -s 
+	engineering.purdue.edu -m state
+	--state ESTABLISHED -j ACCEPT
+\end{lstlisting}
+
+\noindent
+Port 22 is SSH. \texttt{-d engineering.purdue.edu} restricts access to only engineering.purdue.edu. \texttt{--state NEW,ESTABLISHED} allows new and ongoing connections.
+
+\item Requirement 9
+
+\noindent
+Drop all other packets:
+
+\begin{lstlisting}[basicstyle=\ttfamily,frame=single]
+
+\end{lstlisting}
+iptables -A INPUT -j DROP
+iptables -A FORWARD -j DROP
+iptables -A OUTPUT -j DROP
+\end{enumerate}
+
+\noindent
+Disallows traffic from being accepted, forwarded, or sent.
+
+\end{document}
